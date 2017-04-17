@@ -179,6 +179,9 @@ static void process_image(const void *p, int size) {
     decomposeHomographyMat(H,K,R,T,N);
     Mat T1 = T[0];
     Mat a(T1.row(0));
+   distanceInCM = (byte[0] << 8) | byte[1];
+                distanceInM = distanceInCM/100;
+
     cout<<"Distance : "<< distanceInCM <<endl;
     cout<<"y : "<< (T1.at<double>(1,0))*(distanceInCM+5) << endl;
 
@@ -721,7 +724,7 @@ long_options[] = {
 
 int main(int argc, char **argv)
 {
-        dev_name = "/dev/video0";
+        dev_name = "/dev/video13";
 
         for (;;) {
                 int idx;
