@@ -179,11 +179,12 @@ static void process_image(const void *p, int size) {
     decomposeHomographyMat(H,K,R,T,N);
     Mat T1 = T[0];
     Mat a(T1.row(0));
-   distanceInCM = (byte[0] << 8) | byte[1];
+    unsigned char byte[2];
+    distanceInCM = (byte[0] << 8) | byte[1];
                 distanceInM = distanceInCM/100;
 
     cout<<"Distance : "<< distanceInCM <<endl;
-    cout<<"y : "<< (T1.at<double>(1,0))*(distanceInCM+5) << endl;
+    cout<<"y : "<< (T1.at<float>(1,0))*(distanceInCM+5) << endl;
 
 	cvtColor(prev, cflow, CV_GRAY2BGR);
 
