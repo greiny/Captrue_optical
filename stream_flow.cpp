@@ -165,7 +165,7 @@ static void process_image(const void *p, int size) {
 	               Size( win_size, win_size ), 5,
 	                cvTermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 ), 0 );
 
-    calcOpticalFlowFarneback(prev, next, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
+    //calcOpticalFlowFarneback(prev, next, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
 
 
 	Mat H= findHomography( cornersA, cornersB, CV_RANSAC,3);
@@ -184,11 +184,12 @@ static void process_image(const void *p, int size) {
                 distanceInM = distanceInCM/100;
 
     cout<<"Distance : "<< distanceInCM <<endl;
-    cout<<"y : "<< (T1.at<float>(1,0))*(distanceInCM+5) << endl;
-
+    //cout<<"y : "<< (T1.at<float>(1,0))*(distanceInCM+5) << endl;
+    cout<<"y : "<< (T1.at<float>(1,0)) << endl;
+	
 	cvtColor(prev, cflow, CV_GRAY2BGR);
 
-	drawOptFlowMap(flow, cflow, 10, CV_RGB(0, 255, 0));
+	//drawOptFlowMap(flow, cflow, 10, CV_RGB(0, 255, 0));
 
 	prev = next.clone();
 
