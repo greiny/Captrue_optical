@@ -95,56 +95,25 @@ static int xioctl(int fh, int request, void *arg)
         return r;
 }
 
-// Optical Flow with OpenCV
-static void drawOptFlowMap (const Mat& flow, Mat& flowmap, int step, const Scalar& color) {
-
-	int avgX = 0, avgY = 0, totalX = 0, totalY = 0;
-
-	for(int y = 0; y < flowmap.rows; y += step)
-		for(int x = 0; x < flowmap.cols; x += step)
-		{
-			const Point2f& fxy = flow.at< Point2f>(y, x);
-
-			int flowx = cvRound(fxy.x);
-			int flowy = cvRound(fxy.y);
-
-			if(abs(flowx) >= 1) {
-				totalX++;
-				avgX += flowx;
-			}
-
-			if(abs(flowy) >= 1) {
-				totalY++;
-				avgY += flowy;
-			}
-
-			line(flowmap, Point(x,y), Point(x + flowx, y + flowy),color);
-			circle(flowmap, Point(cvRound(x+fxy.x), cvRound(y+fxy.y)), 1, color, -1);
-		}
-
-
-	avgX = (totalX == 0) ? 0 : avgX / totalX;
-	avgY = (totalY == 0) ? 0 : avgY /totalY;
-
-	//printf("avgX: %d, avgY: %d\n", avgX, avgY);
-}
-
 
 static void process_image(const void *p, int size) {
-	Mat output, flow, cflow, resized;
-	int yuv_height = height + height/2;
-	int maxCorners = 300;
-    double qualityLevel = 0.01;
-    double minDistance = 5.0;
-    int blockSize = 3;
-    int win_size = 10;
+	int maxCorners = 200;
+	double qualityLevel = 0.01;
+	double minDistance = 5.0;
+	int blockSize = 3;
+	int win_size = 10;
+	float distanceInCM;
+	int distanceInMM=100;
 
-	Mat input(yuv_height , width, CV_8UC1, (unsigned char *)p);
-
-	resize(input, resized, Size(width/2, yuv_height/2) );
-
+	Rect myROI(0, 0, width-10, height-10);
+	Mat input(height , width, CV_8UC1, (unsigned char *)p);
+	Mat resized = input(myROI);
+	
+	next = resized.clone();
+	Mat buf;
+	cvtColor(next, buf, CV_GRAY2BGR);
 	if(prev.empty()) {
-		cvtColor(resized, prev, CV_YUV2GRAY_I420);
+		prev = resized.clone();
 		return;
 	}
     std::vector<cv::Point2f> cornersA;
@@ -153,47 +122,48 @@ static void process_image(const void *p, int size) {
     cornersB.reserve(maxCorners);
 
     goodFeaturesToTrack( prev,cornersA,maxCorners,qualityLevel,minDistance,cv::Mat(),blockSize,false,0.04);
-    goodFeaturesToTrack( next,cornersB,maxCorners,qualityLevel,minDistance,cv::Mat());
 
-    std::vector<uchar> features_found;
-    features_found.reserve(maxCorners);
-    std::vector<float> feature_errors;
-    feature_errors.reserve(maxCorners);
-
-	cvtColor(resized, next, CV_YUV2GRAY_I420);
+	
+Mat features_found, feature_errors;
 	calcOpticalFlowPyrLK( prev, next, cornersA, cornersB, features_found, feature_errors ,
-	               Size( win_size, win_size ), 5,
-	                cvTermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 ), 0 );
+	       Size( win_size, win_size ), 5,
+		cvTermCriteria( CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.3 ), 0 );
 
-    //calcOpticalFlowFarneback(prev, next, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
-
+	// If points status are ok and distance not negligible keep the point
+	for( int i=0; i < cornersA.size(); i++ )
+	{
+	if (!features_found.at<unsigned char>(i))
+	{		
+	   cornersA.erase(cornersA.begin() +i);
+	   cornersB.erase(cornersB.begin() +i);
+	}
+	}
 
 	Mat H= findHomography( cornersA, cornersB, CV_RANSAC,3);
 
-    Matx33d K = Matx33d(1,0,0,
-                0,1,0,
-                0,0,1);
+	Matx33f Camera_mat( 430.546, 0, 309.724,
+   			      0, 429.713, 248.413,		
+   			      0, 0, 1);
     std::vector<Mat> R, T, N;
 
 
     decomposeHomographyMat(H,K,R,T,N);
-    Mat T1 = T[0];
-    Mat a(T1.row(0));
-    unsigned char byte[2];
-    distanceInCM = (byte[0] << 8) | byte[1];
-                distanceInM = distanceInCM/100;
+    Mat T1 = T[0]*distanceInMM;
+    Mat R1 = R[0];
 
-    cout<<"Distance : "<< distanceInCM <<endl;
-    //cout<<"y : "<< (T1.at<float>(1,0))*(distanceInCM+5) << endl;
-    cout<<"y : "<< (T1.at<float>(1,0)) << endl;
+    	cout<<"y : "<< R[1] << endl;
+	//cout<<"Roll : "<< R1 << endl;
 	
-	cvtColor(prev, cflow, CV_GRAY2BGR);
 
-	//drawOptFlowMap(flow, cflow, 10, CV_RGB(0, 255, 0));
+// Make an image of the results
+   for( int i=0; i < cornersA.size(); i++ ){
+               Point p0( ceil( cornersA[i].x ), ceil( cornersA[i].y ) );
+               Point p1( ceil( cornersB[i].x ), ceil( cornersB[i].y ) );
+               line( buf, p0, p1, CV_RGB(0,255,0), 2 );
+           }
 
 	prev = next.clone();
-
-	imshow("Camera Preview", cflow);
+	imshow("Camera Preview", buf);
 
 	if('q' == waitKey(1)) {
 		exit(0);
@@ -785,7 +755,7 @@ int main(int argc, char **argv)
                 }
         }
 
-        namedWindow( "Camera Preview", WINDOW_AUTOSIZE );// Create a window for display.
+        namedWindow( "Camera Preview", 0 );// Create a window for display.
 
         open_device();
         init_device();
@@ -797,3 +767,4 @@ int main(int argc, char **argv)
         fprintf(stderr, "\n");
         return 0;
 }
+
